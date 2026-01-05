@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rocket Landing Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Rocket Landing Simulator</h1>
+
+    <div class="main-container">
+        <div class="simulation-column">
+            <div class="vis-container">
+                <canvas id="simulationCanvas"></canvas>
+            </div>
+            <div class="info-container">
+                <div class="info-box">
+                    <span>Altitude:</span>
+                    <span id="altitude-display">-</span> m
+                </div>
+                <div class="info-box">
+                    <span>Velocity:</span>
+                    <span id="velocity-display">-</span> m/s
+                </div>
+                 <div class="info-box">
+                    <span>Throttle:</span>
+                    <span id="throttle-display">-</span> %
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-column">
+            <h2>Controls</h2>
+            <div class="control-group">
+                <label>Controller Numerator (e.g., "1, 2, 1" for s²+2s+1):</label>
+                <input type="text" id="controller-num" value="2, 1">
+            </div>
+            <div class="control-group">
+                <label>Controller Denominator (e.g., "1, 0.1, 0" for s²+0.1s):</label>
+                <input type="text" id="controller-den" value="1, 0.1, 0">
+            </div>
+             <div class="control-group">
+                <label for="setpoint-type">Control Target:</label>
+                <select id="setpoint-type">
+                    <option value="altitude" selected>Altitude (m)</option>
+                    <option value="velocity">Velocity (m/s)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="setpoint-value">Target Value:</label>
+                <input type="number" id="setpoint-value" value="50">
+            </div>
+            <div class="control-group">
+                <label for="disturbance-magnitude">Disturbance Magnitude:</label>
+                <input type="range" id="disturbance-magnitude" min="0" max="100" value="5" step="1">
+            </div>
+            <div class="control-group">
+                <label for="gravity-slider">Gravity: <span id="gravity-value">9.81</span> m/s²</label>
+                <input type="range" id="gravity-slider" min="1.6" max="25" value="9.81" step="0.01">
+            </div>
+            <div class="control-group">
+                <label for="speed-slider">Simulation Speed:</label>
+                <input type="range" id="speed-slider" min="0.1" max="4" value="1" step="0.1">
+            </div>
+            <div class="button-group">
+                <button id="start-button">Start</button>
+                <button id="reset-button">Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="system-analysis-container">
+        <div class="formulas-container">
+            <h3>System Equations</h3>
+            <div class="formula-item">
+                <span>Controller C(s):</span>
+                <div id="controller-formula" class="formula-box"></div>
+            </div>
+            <div class="formula-item">
+                <span>Return Ratio L(s):</span>
+                <div id="return-ratio-formula" class="formula-box"></div>
+            </div>
+            <div class="formula-item">
+                <span>Closed-Loop T(s):</span>
+                <div id="closed-loop-formula" class="formula-box"></div>
+            </div>
+            <div class="formula-item">
+                <span>Closed-Loop Poles:</span>
+                <div id="poles-plot" style="height: 300px; background-color: var(--secondary-color); border-radius: 4px;"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="plots-container">
+        <div class="plot-box" id="bodePlot"></div>
+        <div class="plot-box" id="nyquistPlot"></div>
+    </div>
+
+    <script src="https://cdn.plot.ly/plotly-2.12.1.min.js"></script>
+    <script src="simulator.js"></script>
+</body>
+</html>
