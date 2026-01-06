@@ -1,0 +1,217 @@
+:root {
+    --bg-color: #1a1a1a;
+    --primary-color: #2a2a2a;
+    --secondary-color: #3a3a3a;
+    --font-color: #e0e0e0;
+    --accent-color: #00aaff;
+    --green-color: #00ff88;
+    --red-color: #ff4444;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--font-color);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+h1, h2, h3 {
+    color: var(--accent-color);
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.main-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    width: 100%;
+    max-width: 1400px;
+    justify-content: center;
+}
+
+.simulation-column {
+    flex: 2;
+    min-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.controls-column {
+    flex: 1;
+    min-width: 300px;
+    background-color: var(--primary-color);
+    padding: 20px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-self: flex-start;
+}
+
+.vis-container {
+    background-color: #000;
+    border: 2px solid var(--secondary-color);
+    border-radius: 8px;
+    height: 600px;
+    position: relative;
+    overflow: hidden;
+}
+
+#simulationCanvas {
+    width: 100%;
+    height: 100%;
+}
+
+.info-container {
+    display: flex;
+    justify-content: space-around;
+    background-color: var(--primary-color);
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.info-box {
+    text-align: center;
+}
+
+.info-box span {
+    display: block;
+    font-size: 1.2em;
+}
+
+.info-box span:first-child {
+    font-size: 0.9em;
+    color: var(--accent-color);
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.control-group label {
+    margin-bottom: 5px;
+    color: var(--font-color);
+}
+
+.control-group input[type="text"],
+.control-group input[type="number"],
+.control-group select {
+    background-color: var(--secondary-color);
+    color: var(--font-color);
+    border: 1px solid var(--bg-color);
+    border-radius: 4px;
+    padding: 8px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.control-group input[type="range"] {
+    width: 100%;
+}
+
+.note {
+    font-size: 0.8em;
+    color: #aaa;
+    margin-top: 5px;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+#start-button {
+    background-color: var(--green-color);
+    color: #000;
+}
+
+#start-button:hover {
+    background-color: #33ffaa;
+}
+
+#reset-button {
+    background-color: var(--red-color);
+    color: #000;
+}
+
+#reset-button:hover {
+    background-color: #ff7777;
+}
+
+.system-analysis-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    width: 100%;
+    max-width: 1400px;
+    margin-top: 20px;
+    justify-content: center;
+    background-color: var(--primary-color);
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.formulas-container, .block-diagram-container {
+    flex: 1;
+    min-width: 300px;
+}
+
+.formula-item {
+    margin-bottom: 15px;
+}
+
+.formula-item span {
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.formula-box {
+    background-color: var(--secondary-color);
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 5px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.1em;
+    text-align: center;
+    overflow-x: auto;
+}
+
+
+
+
+
+.plots-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    width: 100%;
+    max-width: 1400px;
+    margin-top: 20px;
+    justify-content: center;
+}
+
+.plot-box {
+    flex: 1;
+    min-width: 400px;
+    height: 400px;
+    background-color: var(--primary-color);
+    border-radius: 8px;
+}
