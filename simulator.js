@@ -15,7 +15,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const speedSlider = document.getElementById('speed-slider');
     const gravityInput = document.getElementById('gravity-slider');
     const gravityValue = document.getElementById('gravity-value');
+    const variabilityInput = document.getElementById('variability-slider');
+    const variabilityValue = document.getElementById('variability-value');
+    const actualMassDisplay = document.getElementById('actual-mass-display');
+    const actualLagDisplay = document.getElementById('actual-lag-display');
     const capThrustCheckbox = document.getElementById('cap-thrust');
+    const freqMinInput = document.getElementById('freq-min-exp');
+    const freqMaxInput = document.getElementById('freq-max-exp');
     const controllerFormulaDiv = document.getElementById('controller-formula');
     const closedLoopFormulaDiv = document.getElementById('closed-loop-formula');
     const returnRatioFormulaDiv = document.getElementById('return-ratio-formula');
@@ -165,24 +171,48 @@ document.addEventListener('DOMContentLoaded', () => {
             this.y = y; // altitude (m)
             this.v = v; // velocity (m/s)
             this.throttle = 0; // %
+            this.cmdBuffer = []; // History of thrust commands for lag simulation
         }
 
-        update(thrustCommand, disturbance, dt) {
+        update(thrustCommand, disturbance, dt, massScale = 1.0, lagSeconds = 0) {
             if (isNaN(dt) || dt > 0.5) return; // safety check
 
+            // 1. Actuator Lag Simulation
+            // Store current command
+            this.cmdBuffer.push(thrustCommand);
+            
+            // Limit buffer size to ~1 second of history (200 steps at 5ms)
+            if (this.cmdBuffer.length > 200) {
+                this.cmdBuffer.shift();
+            }
+
+            // Determine which command to apply based on lag
+            let delayedCommand = thrustCommand;
+            if (lagSeconds > 0) {
+                const stepsBack = Math.round(lagSeconds / dt);
+                const index = this.cmdBuffer.length - 1 - stepsBack;
+                // Clamp index to valid range
+                if (index < 0) delayedCommand = this.cmdBuffer[0];
+                else if (index >= this.cmdBuffer.length) delayedCommand = thrustCommand;
+                else delayedCommand = this.cmdBuffer[index];
+            }
+
+
+            // 2. Apply Throttle Limits
             if (capThrustCheckbox.checked) {
-                this.throttle = Math.max(-MAX_THROTTLE, Math.min(MAX_THROTTLE, thrustCommand));
+                this.throttle = Math.max(-MAX_THROTTLE, Math.min(MAX_THROTTLE, delayedCommand));
             } else {
-                this.throttle = thrustCommand;
+                this.throttle = delayedCommand;
             }
             
             const thrustForce = (this.throttle / MAX_THROTTLE) * MAX_THRUST;
             
-            const gravityForce = ROCKET_MASS * G;
+            const actualMass = ROCKET_MASS * massScale;
+            const gravityForce = actualMass * G;
             const disturbanceForce = (disturbance / 100) * MAX_THRUST * (Math.random() - 0.5) * 2;
 
             const totalForce = thrustForce - gravityForce + disturbanceForce;
-            const acceleration = totalForce / ROCKET_MASS;
+            const acceleration = totalForce / actualMass;
 
             this.v += acceleration * dt;
             this.y += this.v * dt;
@@ -422,6 +452,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const setpointValue = parseFloat(setpointValueInput.value);
         const disturbance = parseFloat(disturbanceInput.value);
+        const variability = parseFloat(variabilityInput.value);
+        const massScale = variability / 100;
+        // Deviation from 100% maps to lag. Max deviation is now 20. Max lag is 0.1s (100ms).
+        const lagSeconds = (Math.abs(variability - 100) / 20) * 0.1;
 
         while (simState.accumulator >= FIXED_DT) {
             // Get current error based on latest physics state
@@ -432,11 +466,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const thrustCommand = controller.update(error, FIXED_DT);
 
             // Feedforward Gravity Compensation
+            // NOTE: Feedforward uses NOMINAL mass (what the controller thinks).
             const hoverThrottle = (ROCKET_MASS * G) / MAX_THRUST * 100;
             const totalCommand = thrustCommand + hoverThrottle;
 
-            // Update Rocket Physics
-            rocket.update(totalCommand, disturbance, FIXED_DT);
+            // Update Rocket Physics with ACTUAL mass scale and simulated LAG
+            rocket.update(totalCommand, disturbance, FIXED_DT, massScale, lagSeconds);
 
             simState.accumulator -= FIXED_DT;
         }
@@ -630,7 +665,14 @@ document.addEventListener('DOMContentLoaded', () => {
             ], polesLayout);
 
             const frequencies = [], magnitudes = [], phases = [], nyquistReal = [], nyquistImag = [];
-            for (let i = -2; i <= 4; i += 0.02) { // Smaller step for more points
+            const startExp = parseFloat(freqMinInput.value);
+            const endExp = parseFloat(freqMaxInput.value);
+            // Dynamic step size to avoid too many points if range is huge, or too few if small
+            // Target around 300-400 points
+            const range = endExp - startExp;
+            const step = Math.max(0.01, range / 300);
+
+            for (let i = startExp; i <= endExp; i += step) {
                 const w = Math.pow(10, i);
                 frequencies.push(w);
                 const s = new Complex(0, w);
@@ -770,6 +812,18 @@ document.addEventListener('DOMContentLoaded', () => {
         MAX_THRUST = ROCKET_MASS * G * 3;
         gravityValue.textContent = G.toFixed(2);
         updatePlots();
+    });
+    freqMinInput.addEventListener('change', updatePlots);
+    freqMaxInput.addEventListener('change', updatePlots);
+    variabilityInput.addEventListener('input', () => {
+        const val = parseFloat(variabilityInput.value);
+        variabilityValue.textContent = val;
+        
+        const mass = (ROCKET_MASS * val / 100).toFixed(2);
+        const lag = ((Math.abs(val - 100) / 20) * 100).toFixed(0);
+        
+        actualMassDisplay.textContent = mass;
+        actualLagDisplay.textContent = lag;
     });
 
     // --- Initialization ---
