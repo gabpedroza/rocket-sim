@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const speedSlider = document.getElementById('speed-slider');
     const gravityInput = document.getElementById('gravity-slider');
     const gravityValue = document.getElementById('gravity-value');
+    const capThrustCheckbox = document.getElementById('cap-thrust');
     const controllerFormulaDiv = document.getElementById('controller-formula');
     const closedLoopFormulaDiv = document.getElementById('closed-loop-formula');
     const returnRatioFormulaDiv = document.getElementById('return-ratio-formula');
@@ -25,10 +26,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let simState = {
         running: false,
         lastTime: 0,
+        accumulator: 0,
         animationFrameId: null,
     };
     
     // Constants
+    const FIXED_DT = 0.005; // 5ms fixed physics step
     let G = 9.81; // Gravity m/s^2
     const ROCKET_MASS = 100; // kg
     let MAX_THRUST = ROCKET_MASS * G * 3; // Max thrust in Newtons
@@ -167,7 +170,12 @@ document.addEventListener('DOMContentLoaded', () => {
         update(thrustCommand, disturbance, dt) {
             if (isNaN(dt) || dt > 0.5) return; // safety check
 
-            this.throttle = Math.max(-MAX_THROTTLE, Math.min(MAX_THROTTLE, thrustCommand));
+            if (capThrustCheckbox.checked) {
+                this.throttle = Math.max(-MAX_THROTTLE, Math.min(MAX_THROTTLE, thrustCommand));
+            } else {
+                this.throttle = thrustCommand;
+            }
+            
             const thrustForce = (this.throttle / MAX_THROTTLE) * MAX_THRUST;
             
             const gravityForce = ROCKET_MASS * G;
@@ -282,22 +290,47 @@ document.addEventListener('DOMContentLoaded', () => {
             this.D = d_term_of_proper_part; 
             this.x = Array(n).fill(0);
         }
+
+        // Helper for RK4: Computes Ax + Bu
+        stateDeriv(x, u) {
+            const dx = new Array(x.length).fill(0);
+            for(let i = 0; i < x.length; i++) {
+                for(let j = 0; j < x.length; j++) {
+                    dx[i] += this.A[i][j] * x[j];
+                }
+                dx[i] += this.B[i] * u;
+            }
+            return dx;
+        }
+
+        // Vector Helpers
+        vecAdd(v1, v2) { return v1.map((val, i) => val + v2[i]); }
+        vecScale(v, s) { return v.map(val => val * s); }
     
         update(input, dt) {
             // --- 1. Calculate output from proper part R(s)/D(s) ---
             let proper_output = 0;
             if (this.A.length > 0) {
-                const x_dot = Array(this.x.length).fill(0);
-                for (let i = 0; i < this.x.length; i++) {
-                    for (let j = 0; j < this.x.length; j++) {
-                        x_dot[i] += this.A[i][j] * this.x[j];
-                    }
-                    x_dot[i] += this.B[i] * input;
+                if (dt > 1e-9) {
+                    // RK4 Integration
+                    const k1 = this.stateDeriv(this.x, input);
+                    const k2 = this.stateDeriv(this.vecAdd(this.x, this.vecScale(k1, dt/2)), input);
+                    const k3 = this.stateDeriv(this.vecAdd(this.x, this.vecScale(k2, dt/2)), input);
+                    const k4 = this.stateDeriv(this.vecAdd(this.x, this.vecScale(k3, dt)), input);
+
+                    // x_new = x + dt/6 * (k1 + 2k2 + 2k3 + k4)
+                    const delta = this.vecScale(
+                        this.vecAdd(
+                            this.vecAdd(k1, k4),
+                            this.vecScale(this.vecAdd(k2, k3), 2)
+                        ),
+                        dt / 6
+                    );
+                    this.x = this.vecAdd(this.x, delta);
                 }
                 
                 let output_from_C = 0;
                 for (let i = 0; i < this.x.length; i++) {
-                    this.x[i] += x_dot[i] * dt;
                     output_from_C += this.C[i] * this.x[i];
                 }
                 proper_output = output_from_C + this.D * input;
@@ -379,16 +412,35 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!simState.running || !controller) return;
 
         const simSpeed = parseFloat(speedSlider.value);
-        const dt = (currentTime - simState.lastTime) / 1000 * simSpeed;
+        let frameDt = (currentTime - simState.lastTime) / 1000 * simSpeed;
         simState.lastTime = currentTime;
 
-        const setpointValue = parseFloat(setpointValueInput.value);
-        const currentValue = setpointTypeInput.value === 'altitude' ? rocket.y : rocket.v;
-        const error = setpointValue - currentValue;
-        
-        const thrustCommand = controller.update(error, dt);
+        // Cap frameDt to prevent explosion on tab switch or lag
+        if (frameDt > 0.1) frameDt = 0.1;
 
-        rocket.update(thrustCommand, parseFloat(disturbanceInput.value), dt);
+        simState.accumulator += frameDt;
+
+        const setpointValue = parseFloat(setpointValueInput.value);
+        const disturbance = parseFloat(disturbanceInput.value);
+
+        while (simState.accumulator >= FIXED_DT) {
+            // Get current error based on latest physics state
+            const currentValue = setpointTypeInput.value === 'altitude' ? rocket.y : rocket.v;
+            const error = setpointValue - currentValue;
+            
+            // Update Controller inside the physics loop (Higher frequency)
+            const thrustCommand = controller.update(error, FIXED_DT);
+
+            // Feedforward Gravity Compensation
+            const hoverThrottle = (ROCKET_MASS * G) / MAX_THRUST * 100;
+            const totalCommand = thrustCommand + hoverThrottle;
+
+            // Update Rocket Physics
+            rocket.update(totalCommand, disturbance, FIXED_DT);
+
+            simState.accumulator -= FIXED_DT;
+        }
+        
         updateUI();
         rocket.draw(ctx, canvas);
 
@@ -435,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return result;
         };
 
-        for(let iter = 0; iter < 100; iter++) {
+        for(let iter = 0; iter < 500; iter++) {
             let max_delta = 0;
             let next_roots = [];
             for (let i = 0; i < n; i++) {
@@ -452,7 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(delta.magnitude() > max_delta) max_delta = delta.magnitude();
             }
             roots = next_roots;
-            if(max_delta < 1e-6) break;
+            if(max_delta < 1e-9) break;
         }
         return roots;
     }
@@ -469,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getUniquePolesWithMultiplicity(roots) {
         const unique = [];
-        const tolerance = 0.1; // Tolerance for grouping poles
+        const tolerance = 1e-5; // Tolerance for grouping poles
 
         roots.forEach(root => {
             let found = false;
@@ -489,6 +541,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         return unique;
+    }
+
+    function unwrapPhase(phases) {
+        if (phases.length === 0) return [];
+        const unwrapped = [phases[0]];
+        for (let i = 1; i < phases.length; i++) {
+            let diff = phases[i] - phases[i - 1];
+            while (diff > 180) diff -= 360;
+            while (diff < -180) diff += 360;
+            unwrapped.push(unwrapped[i - 1] + diff);
+        }
+        return unwrapped;
     }
 
     function updatePlots() {
@@ -580,6 +644,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 nyquistImag.push(responseL.im);
             }
 
+            const unwrappedPhases = unwrapPhase(phases);
+
             const minFrequency = Math.min(...frequencies);
             const maxFrequency = Math.max(...frequencies);
             
@@ -595,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             Plotly.newPlot('bodePlot', [
                 { x: frequencies, y: magnitudes, type: 'scatter', name: 'Magnitude' },
-                { x: frequencies, y: phases, type: 'scatter', name: 'Phase', xaxis: 'x2', yaxis: 'y2'}
+                { x: frequencies, y: unwrappedPhases, type: 'scatter', name: 'Phase', xaxis: 'x2', yaxis: 'y2'}
             ], bodeLayout);
 
             const nyquistLayout = {
