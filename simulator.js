@@ -677,13 +677,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 frequencies.push(w);
                 const s = new Complex(0, w);
 
-                const responseT = evaluateTF(numT, denT, s);
-                magnitudes.push(20 * Math.log10(responseT.magnitude()));
-                phases.push(responseT.phase() * 180 / Math.PI);
-
                 const responseL = evaluateTF(numL, denL, s);
+                magnitudes.push(20 * Math.log10(responseL.magnitude()));
+                phases.push(responseL.phase() * 180 / Math.PI);
+
                 nyquistReal.push(responseL.re);
                 nyquistImag.push(responseL.im);
+            }
+
+            // Correct phase wrapping based on system type
+            let polesAtOrigin = 0;
+            for (let i = denL.length - 1; i >= 0; i--) {
+                if (Math.abs(denL[i]) < 1e-9) polesAtOrigin++;
+                else break;
+            }
+            let zerosAtOrigin = 0;
+            for (let i = numL.length - 1; i >= 0; i--) {
+                if (Math.abs(numL[i]) < 1e-9) zerosAtOrigin++;
+                else break;
+            }
+            
+            // Expected phase at low frequency: (zeros - poles) * 90
+            // If sign of gain is negative, add 180.
+            // Check DC gain sign (first non-zero trailing coeff)
+            let dcGainSign = 1;
+            // Find lowest non-zero coeff for num and den
+            let lowNum = 0;
+            for(let i=numL.length-1; i>=0; i--) { if(Math.abs(numL[i]) > 1e-9) { lowNum = numL[i]; break; } }
+            let lowDen = 0;
+            for(let i=denL.length-1; i>=0; i--) { if(Math.abs(denL[i]) > 1e-9) { lowDen = denL[i]; break; } }
+            
+            if (lowNum * lowDen < 0) dcGainSign = -1;
+
+            let expectedStartPhase = (zerosAtOrigin - polesAtOrigin) * 90;
+            if (dcGainSign < 0) expectedStartPhase += 180;
+
+            if (phases.length > 0) {
+                const currentStart = phases[0];
+                const diff = currentStart - expectedStartPhase;
+                const shifts = Math.round(diff / 360);
+                phases[0] -= shifts * 360;
             }
 
             const unwrappedPhases = unwrapPhase(phases);
@@ -692,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const maxFrequency = Math.max(...frequencies);
             
             const bodeLayout = {
-                title: 'Closed-Loop Bode Plot',
+                title: 'Return Ratio Bode Plot',
                 xaxis: { type: 'log', title: 'Frequency (rad/s)'},
                 yaxis: { title: 'Magnitude (dB)'},
                 xaxis2: { type: 'log', anchor: 'y', title: 'Frequency (rad/s)' },
